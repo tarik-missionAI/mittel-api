@@ -1,0 +1,229 @@
+{
+  "info": {
+    "name": "Mitel API Mock Server",
+    "description": "Collection of API endpoints for the Mitel API Mock Server. This mock server simulates a Mitel telephony system and provides Call Detail Records (CDR) data.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:5000",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Core Endpoints",
+      "item": [
+        {
+          "name": "API Home",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/",
+              "host": ["{{base_url}}"],
+              "path": [""]
+            },
+            "description": "Get API information and available endpoints"
+          }
+        },
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/health",
+              "host": ["{{base_url}}"],
+              "path": ["api", "health"]
+            },
+            "description": "Check if the API is healthy and running"
+          }
+        }
+      ]
+    },
+    {
+      "name": "CDR Endpoints",
+      "item": [
+        {
+          "name": "Get CDR Records (Default)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/cdr",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "cdr"]
+            },
+            "description": "Get Call Detail Records with default limit (10)"
+          }
+        },
+        {
+          "name": "Get CDR Records (Custom Limit)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/cdr?limit=25",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "cdr"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "25",
+                  "description": "Number of records to return (max: 100)"
+                }
+              ]
+            },
+            "description": "Get CDR records with custom limit"
+          }
+        },
+        {
+          "name": "Filter CDR by Extension",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/cdr?extension=694311&limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "cdr"],
+              "query": [
+                {
+                  "key": "extension",
+                  "value": "694311",
+                  "description": "Filter by extension number"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Get CDR records filtered by extension"
+          }
+        },
+        {
+          "name": "Filter CDR by Direction (Inbound)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/cdr?direction=I&limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "cdr"],
+              "query": [
+                {
+                  "key": "direction",
+                  "value": "I",
+                  "description": "I=Inbound, O=Outbound, B=Both"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Get inbound CDR records"
+          }
+        },
+        {
+          "name": "Filter CDR by Direction (Outbound)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/cdr?direction=O&limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "cdr"],
+              "query": [
+                {
+                  "key": "direction",
+                  "value": "O",
+                  "description": "I=Inbound, O=Outbound, B=Both"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Get outbound CDR records"
+          }
+        },
+        {
+          "name": "Get CDR Stream (Kafka Format)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/cdr/stream?limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "cdr", "stream"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "Number of messages to return"
+                }
+              ]
+            },
+            "description": "Get CDR records in Kafka message format (similar to the CSV structure)"
+          }
+        },
+        {
+          "name": "Export CDR as CSV",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/cdr/export?limit=50",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "cdr", "export"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "description": "Number of records to export"
+                }
+              ]
+            },
+            "description": "Export CDR records as CSV file"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Management Endpoints",
+      "item": [
+        {
+          "name": "Get Extensions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/extensions",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "extensions"]
+            },
+            "description": "Get list of available extensions with status"
+          }
+        },
+        {
+          "name": "Get Call Statistics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/stats",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "stats"]
+            },
+            "description": "Get call statistics and metrics"
+          }
+        }
+      ]
+    }
+  ]
+}
+
