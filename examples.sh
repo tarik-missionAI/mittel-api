@@ -1,85 +1,103 @@
 #!/bin/bash
 
-# Example API Usage Script
-# This script demonstrates how to use the Mitel API Mock endpoints
+# Mitel MiContact Center API - Usage Examples
+# Demonstrates all Mitel-compliant endpoints
 
 API_URL="${API_URL:-http://localhost:5000}"
+API_PATH="/api/v1/reporting"
 
 echo "======================================"
-echo "Mitel API Mock - Usage Examples"
+echo "Mitel MiContact Center API Examples"
 echo "======================================"
 echo "API URL: $API_URL"
+echo "API Path: $API_PATH"
 echo ""
 
 # Test 1: Health Check
 echo "1️⃣  Health Check"
 echo "---"
-curl -s "$API_URL/api/health" | python3 -m json.tool
+curl -s "$API_URL/health" | python3 -m json.tool
 echo ""
 echo ""
 
-# Test 2: Home endpoint
-echo "2️⃣  API Home"
+# Test 2: API Root
+echo "2️⃣  API Information"
 echo "---"
 curl -s "$API_URL/" | python3 -m json.tool
 echo ""
 echo ""
 
-# Test 3: Get CDR records (default limit)
-echo "3️⃣  Get CDR Records (default limit=10)"
+# Test 3: Get Call Records (default)
+echo "3️⃣  Get Call Records (default limit=50)"
 echo "---"
-curl -s "$API_URL/api/v1/cdr" | python3 -m json.tool | head -50
+curl -s "$API_URL$API_PATH/calls" | python3 -m json.tool | head -60
 echo "..."
 echo ""
 
-# Test 4: Get CDR records with limit
-echo "4️⃣  Get CDR Records (limit=5)"
+# Test 4: Get Call Records with limit
+echo "4️⃣  Get Call Records (limit=5)"
 echo "---"
-curl -s "$API_URL/api/v1/cdr?limit=5" | python3 -m json.tool | head -40
+curl -s "$API_URL$API_PATH/calls?limit=5" | python3 -m json.tool | head -50
 echo "..."
 echo ""
 
 # Test 5: Filter by extension
-echo "5️⃣  Filter CDR by Extension"
+echo "5️⃣  Filter Calls by Extension (694311)"
 echo "---"
-curl -s "$API_URL/api/v1/cdr?extension=694311&limit=3" | python3 -m json.tool | head -30
+curl -s "$API_URL$API_PATH/calls?extension=694311&limit=3" | python3 -m json.tool | head -40
 echo "..."
 echo ""
 
 # Test 6: Filter by direction
-echo "6️⃣  Filter CDR by Direction (Inbound)"
+echo "6️⃣  Filter Calls by Direction (Inbound only)"
 echo "---"
-curl -s "$API_URL/api/v1/cdr?direction=I&limit=5" | python3 -m json.tool | head -30
+curl -s "$API_URL$API_PATH/calls?direction=I&limit=5" | python3 -m json.tool | head -40
 echo "..."
 echo ""
 
 # Test 7: Get Kafka stream format
-echo "7️⃣  Get CDR in Kafka Stream Format"
+echo "7️⃣  Get Call Stream in Kafka Format"
 echo "---"
-curl -s "$API_URL/api/v1/cdr/stream?limit=2" | python3 -m json.tool | head -40
+curl -s "$API_URL$API_PATH/calls/stream?limit=2" | python3 -m json.tool | head -50
 echo "..."
 echo ""
 
-# Test 8: Get extensions
-echo "8️⃣  Get Extensions"
+# Test 8: Export as CSV
+echo "8️⃣  Export Calls as CSV (saved to mitel_calls_export.csv)"
 echo "---"
-curl -s "$API_URL/api/v1/extensions" | python3 -m json.tool
+curl -s "$API_URL$API_PATH/calls/export?limit=5" -o mitel_calls_export.csv
+echo "✅ Exported to mitel_calls_export.csv"
+head -3 mitel_calls_export.csv
+echo "..."
+echo ""
+
+# Test 9: Get agents
+echo "9️⃣  Get Agents/Extensions"
+echo "---"
+curl -s "$API_URL$API_PATH/agents" | python3 -m json.tool
 echo ""
 echo ""
 
-# Test 9: Get statistics
-echo "9️⃣  Get Call Statistics"
+# Test 10: Get statistics
+echo "🔟  Get Call Statistics & KPIs"
 echo "---"
-curl -s "$API_URL/api/v1/stats" | python3 -m json.tool
+curl -s "$API_URL$API_PATH/statistics" | python3 -m json.tool
 echo ""
 echo ""
 
-# Test 10: Export as CSV
-echo "🔟  Export CDR as CSV (saved to cdr_export.csv)"
+# Test 11: Date range filtering
+echo "1️⃣1️⃣  Date Range Filtering"
 echo "---"
-curl -s "$API_URL/api/v1/cdr/export?limit=5" -o cdr_export.csv
-echo "✅ Exported to cdr_export.csv"
-head -3 cdr_export.csv
+echo "Get calls from Nov 20-22, 2025..."
+curl -s "$API_URL$API_PATH/calls?startDate=2025-11-20&endDate=2025-11-22&limit=5" | python3 -m json.tool | head -40
+echo "..."
+echo ""
+
+# Test 12: Datetime filtering
+echo "1️⃣2️⃣  Datetime Filtering (with time)"
+echo "---"
+echo "Get calls with specific time range..."
+curl -s "$API_URL$API_PATH/calls?startDate=2025-11-20T00:00:00&endDate=2025-11-22T23:59:59&limit=3" | python3 -m json.tool | head -35
 echo "..."
 echo ""
 
@@ -87,8 +105,15 @@ echo "======================================"
 echo "Examples Complete!"
 echo "======================================"
 echo ""
-echo "For EC2 deployment, set API_URL environment variable:"
+echo "🎯 Mitel-Compliant Endpoints:"
+echo "  - $API_PATH/calls"
+echo "  - $API_PATH/calls/stream"
+echo "  - $API_PATH/calls/export"
+echo "  - $API_PATH/agents"
+echo "  - $API_PATH/statistics"
+echo ""
+echo "For EC2 deployment, set API_URL:"
 echo "  export API_URL=http://your-ec2-ip:5000"
-echo "  ./examples.sh"
+echo "  ./examples_mitel.sh"
 echo ""
 

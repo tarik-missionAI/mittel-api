@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 import random
 import json
 import logging
-from typing import List, Dict, Optional
+from typing import Optional
 
 app = Flask(__name__)
 CORS(app)
@@ -74,9 +74,13 @@ def generate_leg_id(extno, call_id, timestamp):
     return f"{phone}_{extno}_{call_id}_{timestamp}"
 
 
-def generate_call_record():
+def generate_call_record(start_date: Optional[datetime] = None, end_date: Optional[datetime] = None):
     """
     Generate a single Call Detail Record matching Mitel MiContact Center format
+    
+    Args:
+        start_date: Start of date range for call_date
+        end_date: End of date range for call_date
     """
     global record_id_counter
     record_id_counter += 1
@@ -101,8 +105,29 @@ def generate_call_record():
     contact_points = "1" if duration > 0 else "0"
     call_experience = str(random.randint(0, 5)) if duration > 0 else "0"
     
-    # Call date
-    call_date = datetime.now() - timedelta(seconds=random.randint(0, 3600))
+    # Call date - within specified range if provided
+    if start_date and end_date:
+        # Generate random datetime within range
+        time_diff = (end_date - start_date).total_seconds()
+        random_seconds = random.uniform(0, time_diff)
+        call_date = start_date + timedelta(seconds=random_seconds)
+    elif start_date:
+        # Generate from start_date to now
+        time_diff = (datetime.now() - start_date).total_seconds()
+        if time_diff > 0:
+            random_seconds = random.uniform(0, time_diff)
+            call_date = start_date + timedelta(seconds=random_seconds)
+        else:
+            call_date = start_date
+    elif end_date:
+        # Generate from 30 days before end_date to end_date
+        start = end_date - timedelta(days=30)
+        time_diff = (end_date - start).total_seconds()
+        random_seconds = random.uniform(0, time_diff)
+        call_date = start + timedelta(seconds=random_seconds)
+    else:
+        # Default: random time in last hour
+        call_date = datetime.now() - timedelta(seconds=random.randint(0, 3600))
     
     # Build the record
     record = {
@@ -189,6 +214,33 @@ def wrap_in_kafka_format(record):
     }
 
 
+def parse_date_param(date_str: str, param_name: str, end_of_day: bool = False):
+    """
+    Parse date parameter from request
+    
+    Supports:
+    - ISO 8601: 2025-11-20T10:30:00
+    - ISO 8601 with Z: 2025-11-20T10:30:00Z
+    - Date only: 2025-11-20
+    """
+    if not date_str:
+        return None
+        
+    try:
+        # Handle ISO 8601 with timezone
+        if 'T' in date_str:
+            date_str = date_str.replace('Z', '+00:00')
+            return datetime.fromisoformat(date_str)
+        else:
+            # Date only - parse and optionally set to end of day
+            dt = datetime.strptime(date_str, '%Y-%m-%d')
+            if end_of_day:
+                dt = dt.replace(hour=23, minute=59, second=59)
+            return dt
+    except ValueError:
+        raise ValueError(f"Invalid {param_name} format. Use ISO 8601: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS")
+
+
 # ==================== API ENDPOINTS ====================
 
 @app.route('/')
@@ -200,7 +252,7 @@ def root():
         "description": "Mock API for Mitel MiContact Center Call Detail Records",
         "documentation": "https://developer.mitel.io/",
         "endpoints": {
-            f"{BASE_PATH}/reporting/calls": "Get historical call records",
+            f"{BASE_PATH}/reporting/calls": "Get historical call records with date filtering",
             f"{BASE_PATH}/reporting/calls/stream": "Stream call records (Kafka format)",
             f"{BASE_PATH}/reporting/calls/export": "Export calls as CSV",
             f"{BASE_PATH}/reporting/agents": "Get agent/extension information",
@@ -226,12 +278,18 @@ def get_call_records():
     Get Call Detail Records - Mitel MiContact Center format
     
     Query Parameters:
-        - startDate: Start date (ISO format)
-        - endDate: End date (ISO format)
+        - startDate: Start date/time (ISO 8601: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)
+        - endDate: End date/time (ISO 8601: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)
         - extension: Filter by extension number
         - direction: Filter by direction (I/O/B)
         - limit: Max records to return (default: 50, max: 500)
         - offset: Pagination offset (default: 0)
+    
+    Examples:
+        /api/v1/reporting/calls?startDate=2025-11-20&endDate=2025-11-22
+        /api/v1/reporting/calls?startDate=2025-11-20T00:00:00&endDate=2025-11-22T23:59:59
+        /api/v1/reporting/calls?extension=694311&limit=50
+        /api/v1/reporting/calls?direction=I&startDate=2025-11-20
     """
     try:
         # Parse parameters
@@ -239,8 +297,31 @@ def get_call_records():
         offset = int(request.args.get('offset', 0))
         extension = request.args.get('extension')
         direction = request.args.get('direction')
-        start_date = request.args.get('startDate')
-        end_date = request.args.get('endDate')
+        start_date_str = request.args.get('startDate')
+        end_date_str = request.args.get('endDate')
+        
+        # Parse and validate dates
+        try:
+            start_date = parse_date_param(start_date_str, 'startDate', end_of_day=False)
+            end_date = parse_date_param(end_date_str, 'endDate', end_of_day=True)
+        except ValueError as e:
+            return jsonify({
+                "success": False,
+                "error": {
+                    "code": "INVALID_DATE_FORMAT",
+                    "message": str(e)
+                }
+            }), 400
+        
+        # Validate date range
+        if start_date and end_date and start_date > end_date:
+            return jsonify({
+                "success": False,
+                "error": {
+                    "code": "INVALID_DATE_RANGE",
+                    "message": "startDate must be before or equal to endDate"
+                }
+            }), 400
         
         # Generate records
         records = []
@@ -248,7 +329,7 @@ def get_call_records():
         max_attempts = limit * 3  # Avoid infinite loop with filters
         
         while len(records) < limit and attempts < max_attempts:
-            record = generate_call_record()
+            record = generate_call_record(start_date, end_date)
             attempts += 1
             
             # Apply filters
@@ -256,14 +337,20 @@ def get_call_records():
                 continue
             if direction and record['Direction'] != direction:
                 continue
-                
+            
             records.append(record)
         
-        logger.info(f"Generated {len(records)} call records")
+        logger.info(f"Generated {len(records)} call records (date range: {start_date_str} to {end_date_str})")
         
         return jsonify({
             "success": True,
             "data": records,
+            "filters": {
+                "startDate": start_date_str,
+                "endDate": end_date_str,
+                "extension": extension,
+                "direction": direction
+            },
             "pagination": {
                 "limit": limit,
                 "offset": offset,
@@ -291,23 +378,44 @@ def stream_call_records():
     This matches the structure in your CSV file
     
     Query Parameters:
+        - startDate: Start date (ISO 8601)
+        - endDate: End date (ISO 8601)
         - limit: Number of messages (default: 50, max: 500)
     """
     try:
         limit = min(int(request.args.get('limit', 50)), 500)
+        start_date_str = request.args.get('startDate')
+        end_date_str = request.args.get('endDate')
+        
+        # Parse dates
+        try:
+            start_date = parse_date_param(start_date_str, 'startDate', end_of_day=False)
+            end_date = parse_date_param(end_date_str, 'endDate', end_of_day=True)
+        except ValueError as e:
+            return jsonify({
+                "success": False,
+                "error": {
+                    "code": "INVALID_DATE_FORMAT",
+                    "message": str(e)
+                }
+            }), 400
         
         messages = []
         for _ in range(limit):
-            record = generate_call_record()
+            record = generate_call_record(start_date, end_date)
             message = wrap_in_kafka_format(record)
             messages.append(message)
         
-        logger.info(f"Generated {len(messages)} Kafka messages")
+        logger.info(f"Generated {len(messages)} Kafka-formatted messages")
         
         return jsonify({
             "success": True,
             "messages": messages,
             "count": len(messages),
+            "filters": {
+                "startDate": start_date_str,
+                "endDate": end_date_str
+            },
             "timestamp": datetime.now().isoformat()
         })
     
@@ -329,16 +437,33 @@ def export_calls_csv():
     Matches the exact format of your source CSV file
     
     Query Parameters:
+        - startDate: Start date (ISO 8601)
+        - endDate: End date (ISO 8601)
         - limit: Number of records (default: 100, max: 1000)
     """
     try:
         limit = min(int(request.args.get('limit', 100)), 1000)
+        start_date_str = request.args.get('startDate')
+        end_date_str = request.args.get('endDate')
+        
+        # Parse dates
+        try:
+            start_date = parse_date_param(start_date_str, 'startDate', end_of_day=False)
+            end_date = parse_date_param(end_date_str, 'endDate', end_of_day=True)
+        except ValueError as e:
+            return jsonify({
+                "success": False,
+                "error": {
+                    "code": "INVALID_DATE_FORMAT",
+                    "message": str(e)
+                }
+            }), 400
         
         # CSV header
         csv_lines = ["timestamp,timestampType,partition,offset,key,value,headers,exceededFields"]
         
         for _ in range(limit):
-            record = generate_call_record()
+            record = generate_call_record(start_date, end_date)
             message = wrap_in_kafka_format(record)
             
             # Format as CSV line (matching your source file)
@@ -355,11 +480,19 @@ def export_calls_csv():
         
         csv_content = '\n'.join(csv_lines)
         
+        # Generate filename with date range if provided
+        filename = "mitel_call_records"
+        if start_date_str:
+            filename += f"_{start_date_str}"
+        if end_date_str:
+            filename += f"_to_{end_date_str}"
+        filename += ".csv"
+        
         return Response(
             csv_content,
             mimetype='text/csv',
             headers={
-                'Content-Disposition': 'attachment; filename=mitel_call_records.csv'
+                'Content-Disposition': f'attachment; filename={filename}'
             }
         )
     
@@ -400,7 +533,21 @@ def get_statistics():
     """
     Get call statistics and KPIs
     Mitel MiContact Center format
+    
+    Query Parameters:
+        - startDate: Start date for statistics (ISO 8601)
+        - endDate: End date for statistics (ISO 8601)
     """
+    start_date_str = request.args.get('startDate')
+    end_date_str = request.args.get('endDate')
+    
+    # Default to last 24 hours if not specified
+    if not start_date_str:
+        start_date = datetime.now() - timedelta(days=1)
+        start_date_str = start_date.isoformat()
+    if not end_date_str:
+        end_date_str = datetime.now().isoformat()
+    
     return jsonify({
         "success": True,
         "data": {
@@ -430,36 +577,17 @@ def get_statistics():
             }
         },
         "period": {
-            "startDate": (datetime.now() - timedelta(days=1)).isoformat(),
-            "endDate": datetime.now().isoformat()
+            "startDate": start_date_str,
+            "endDate": end_date_str
         },
         "timestamp": datetime.now().isoformat()
     })
 
 
-# Legacy compatibility endpoints (for backward compatibility with your original API)
-@app.route('/api/v1/cdr', methods=['GET'])
-def legacy_cdr():
-    """Legacy endpoint - redirects to new structure"""
-    return get_call_records()
-
-
-@app.route('/api/v1/cdr/stream', methods=['GET'])
-def legacy_stream():
-    """Legacy endpoint - redirects to new structure"""
-    return stream_call_records()
-
-
-@app.route('/api/v1/cdr/export', methods=['GET'])
-def legacy_export():
-    """Legacy endpoint - redirects to new structure"""
-    return export_calls_csv()
-
-
 if __name__ == '__main__':
-    print("=" * 60)
+    print("=" * 70)
     print("Mitel MiContact Center Historical Reporting API - Mock Server")
-    print("=" * 60)
+    print("=" * 70)
     print(f"API Version: {API_VERSION}")
     print(f"Base Path: {BASE_PATH}")
     print("\nEndpoints:")
@@ -468,8 +596,12 @@ if __name__ == '__main__':
     print(f"  - {BASE_PATH}/reporting/calls/export")
     print(f"  - {BASE_PATH}/reporting/agents")
     print(f"  - {BASE_PATH}/reporting/statistics")
+    print("\nFeatures:")
+    print("  ✓ Date range filtering (startDate/endDate)")
+    print("  ✓ Extension and direction filtering")
+    print("  ✓ Kafka message format support")
+    print("  ✓ CSV export with exact format match")
     print("\nStarting server on http://0.0.0.0:5000")
-    print("=" * 60)
+    print("=" * 70)
     
     app.run(host='0.0.0.0', port=5000, debug=False)
-

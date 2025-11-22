@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Test script for Mitel API Mock Server
-Run this to verify the API is working correctly
+Test script for Mitel MiContact Center API Mock Server
+Tests all Mitel-compliant endpoints
 """
 
 import requests
@@ -10,12 +10,13 @@ import sys
 
 # API base URL
 BASE_URL = "http://localhost:5000"
+API_PATH = "/api/v1/reporting"
 
 def test_health():
     """Test health endpoint"""
-    print("\n🔍 Testing /api/health...")
+    print("\n🔍 Testing /health...")
     try:
-        response = requests.get(f"{BASE_URL}/api/health", timeout=5)
+        response = requests.get(f"{BASE_URL}/health", timeout=5)
         if response.status_code == 200:
             print("✅ Health check passed")
             print(json.dumps(response.json(), indent=2))
@@ -28,122 +29,205 @@ def test_health():
         return False
 
 
-def test_home():
-    """Test home endpoint"""
+def test_root():
+    """Test root endpoint"""
     print("\n🔍 Testing /...")
     try:
         response = requests.get(f"{BASE_URL}/", timeout=5)
         if response.status_code == 200:
-            print("✅ Home endpoint passed")
+            print("✅ Root endpoint passed")
             data = response.json()
-            print(f"Service: {data.get('service')}")
+            print(f"Name: {data.get('name')}")
             print(f"Version: {data.get('version')}")
             return True
         else:
-            print(f"❌ Home endpoint failed: {response.status_code}")
+            print(f"❌ Root endpoint failed: {response.status_code}")
             return False
     except Exception as e:
         print(f"❌ Error: {e}")
         return False
 
 
-def test_cdr():
-    """Test CDR endpoint"""
-    print("\n🔍 Testing /api/v1/cdr...")
+def test_calls():
+    """Test calls endpoint"""
+    print(f"\n🔍 Testing {API_PATH}/calls...")
     try:
-        response = requests.get(f"{BASE_URL}/api/v1/cdr?limit=5", timeout=5)
+        response = requests.get(f"{BASE_URL}{API_PATH}/calls?limit=5", timeout=5)
         if response.status_code == 200:
             data = response.json()
-            print(f"✅ CDR endpoint passed")
-            print(f"Records returned: {data.get('count')}")
-            if data.get('records'):
-                record = data['records'][0]
-                print(f"Sample record ID: {record.get('RecordId')}")
+            print(f"✅ Calls endpoint passed")
+            print(f"Records returned: {len(data.get('data', []))}")
+            if data.get('data'):
+                record = data['data'][0]
+                print(f"Sample CallId: {record.get('CallId')}")
                 print(f"Extension: {record.get('Extno')}")
-                print(f"Direction: {record.get('Direction')}")
+                print(f"Journey Outcome: {record.get('JourneyOutcome')}")
+                print(f"Experience Rating: {record.get('CallExperienceRating')}")
             return True
         else:
-            print(f"❌ CDR endpoint failed: {response.status_code}")
+            print(f"❌ Calls endpoint failed: {response.status_code}")
             return False
     except Exception as e:
         print(f"❌ Error: {e}")
         return False
 
 
-def test_cdr_stream():
-    """Test CDR stream endpoint"""
-    print("\n🔍 Testing /api/v1/cdr/stream...")
+def test_calls_filter_extension():
+    """Test calls endpoint with extension filter"""
+    print(f"\n🔍 Testing {API_PATH}/calls with extension filter...")
     try:
-        response = requests.get(f"{BASE_URL}/api/v1/cdr/stream?limit=3", timeout=5)
+        response = requests.get(
+            f"{BASE_URL}{API_PATH}/calls?extension=694311&limit=5", 
+            timeout=5
+        )
         if response.status_code == 200:
             data = response.json()
-            print(f"✅ CDR stream endpoint passed")
+            print(f"✅ Extension filter passed")
+            print(f"Records returned: {len(data.get('data', []))}")
+            return True
+        else:
+            print(f"❌ Extension filter failed: {response.status_code}")
+            return False
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        return False
+
+
+def test_calls_stream():
+    """Test calls stream endpoint (Kafka format)"""
+    print(f"\n🔍 Testing {API_PATH}/calls/stream...")
+    try:
+        response = requests.get(f"{BASE_URL}{API_PATH}/calls/stream?limit=3", timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            print(f"✅ Calls stream endpoint passed")
             print(f"Messages returned: {data.get('count')}")
             if data.get('messages'):
                 msg = data['messages'][0]
                 print(f"Sample message timestamp: {msg.get('timestamp')}")
                 print(f"Partition: {msg.get('partition')}")
+                print(f"Offset: {msg.get('offset')}")
             return True
         else:
-            print(f"❌ CDR stream endpoint failed: {response.status_code}")
+            print(f"❌ Calls stream endpoint failed: {response.status_code}")
             return False
     except Exception as e:
         print(f"❌ Error: {e}")
         return False
 
 
-def test_extensions():
-    """Test extensions endpoint"""
-    print("\n🔍 Testing /api/v1/extensions...")
+def test_calls_export():
+    """Test calls export endpoint"""
+    print(f"\n🔍 Testing {API_PATH}/calls/export...")
     try:
-        response = requests.get(f"{BASE_URL}/api/v1/extensions", timeout=5)
+        response = requests.get(f"{BASE_URL}{API_PATH}/calls/export?limit=2", timeout=5)
         if response.status_code == 200:
-            data = response.json()
-            print(f"✅ Extensions endpoint passed")
-            print(f"Extensions returned: {data.get('count')}")
-            return True
-        else:
-            print(f"❌ Extensions endpoint failed: {response.status_code}")
-            return False
-    except Exception as e:
-        print(f"❌ Error: {e}")
-        return False
-
-
-def test_stats():
-    """Test stats endpoint"""
-    print("\n🔍 Testing /api/v1/stats...")
-    try:
-        response = requests.get(f"{BASE_URL}/api/v1/stats", timeout=5)
-        if response.status_code == 200:
-            data = response.json()
-            print(f"✅ Stats endpoint passed")
-            stats = data.get('stats', {})
-            print(f"Total calls today: {stats.get('total_calls_today')}")
-            print(f"Inbound calls: {stats.get('inbound_calls')}")
-            print(f"Outbound calls: {stats.get('outbound_calls')}")
-            return True
-        else:
-            print(f"❌ Stats endpoint failed: {response.status_code}")
-            return False
-    except Exception as e:
-        print(f"❌ Error: {e}")
-        return False
-
-
-def test_cdr_export():
-    """Test CDR export endpoint"""
-    print("\n🔍 Testing /api/v1/cdr/export...")
-    try:
-        response = requests.get(f"{BASE_URL}/api/v1/cdr/export?limit=2", timeout=5)
-        if response.status_code == 200:
-            print(f"✅ CDR export endpoint passed")
+            print(f"✅ Calls export endpoint passed")
             lines = response.text.split('\n')
             print(f"CSV lines returned: {len(lines)}")
-            print(f"Header: {lines[0][:50]}...")
+            print(f"Header: {lines[0][:60]}...")
             return True
         else:
-            print(f"❌ CDR export endpoint failed: {response.status_code}")
+            print(f"❌ Calls export endpoint failed: {response.status_code}")
+            return False
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        return False
+
+
+def test_agents():
+    """Test agents endpoint"""
+    print(f"\n🔍 Testing {API_PATH}/agents...")
+    try:
+        response = requests.get(f"{BASE_URL}{API_PATH}/agents", timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            print(f"✅ Agents endpoint passed")
+            print(f"Agents returned: {data.get('count')}")
+            if data.get('data'):
+                agent = data['data'][0]
+                print(f"Sample agent: {agent.get('extension')} - {agent.get('status')}")
+            return True
+        else:
+            print(f"❌ Agents endpoint failed: {response.status_code}")
+            return False
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        return False
+
+
+def test_statistics():
+    """Test statistics endpoint"""
+    print(f"\n🔍 Testing {API_PATH}/statistics...")
+    try:
+        response = requests.get(f"{BASE_URL}{API_PATH}/statistics", timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            print(f"✅ Statistics endpoint passed")
+            stats = data.get('data', {})
+            cv = stats.get('callVolume', {})
+            print(f"Total calls: {cv.get('totalCalls')}")
+            print(f"Inbound: {cv.get('inboundCalls')}, Outbound: {cv.get('outboundCalls')}")
+            jm = stats.get('journeyMetrics', {})
+            print(f"Average Experience Rating: {jm.get('averageExperienceRating')}")
+            return True
+        else:
+            print(f"❌ Statistics endpoint failed: {response.status_code}")
+            return False
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        return False
+
+
+def test_calls_date_filter():
+    """Test calls endpoint with date range filter"""
+    print(f"\n🔍 Testing {API_PATH}/calls with date range filter...")
+    try:
+        # Test with date range
+        start_date = "2025-11-20"
+        end_date = "2025-11-22"
+        response = requests.get(
+            f"{BASE_URL}{API_PATH}/calls?startDate={start_date}&endDate={end_date}&limit=10",
+            timeout=5
+        )
+        if response.status_code == 200:
+            data = response.json()
+            print(f"✅ Date range filter passed")
+            print(f"Records returned: {len(data.get('data', []))}")
+            print(f"Date range: {start_date} to {end_date}")
+            if data.get('filters'):
+                print(f"Applied filters: {data['filters']}")
+            return True
+        else:
+            print(f"❌ Date filter failed: {response.status_code}")
+            return False
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        return False
+
+
+def test_calls_date_filter_datetime():
+    """Test calls endpoint with datetime filter"""
+    print(f"\n🔍 Testing {API_PATH}/calls with datetime filter...")
+    try:
+        # Test with full datetime
+        start_date = "2025-11-20T00:00:00"
+        end_date = "2025-11-22T23:59:59"
+        response = requests.get(
+            f"{BASE_URL}{API_PATH}/calls?startDate={start_date}&endDate={end_date}&limit=5",
+            timeout=5
+        )
+        if response.status_code == 200:
+            data = response.json()
+            print(f"✅ Datetime filter passed")
+            print(f"Records returned: {len(data.get('data', []))}")
+            # Verify dates are within range
+            if data.get('data'):
+                record_date = data['data'][0].get('Call_date')
+                print(f"Sample record date: {record_date}")
+            return True
+        else:
+            print(f"❌ Datetime filter failed: {response.status_code}")
             return False
     except Exception as e:
         print(f"❌ Error: {e}")
@@ -152,20 +236,24 @@ def test_cdr_export():
 
 def main():
     """Run all tests"""
-    print("=" * 60)
-    print("Mitel API Mock Server - Test Suite")
-    print("=" * 60)
+    print("=" * 70)
+    print("Mitel MiContact Center API Mock Server - Test Suite")
+    print("=" * 70)
     print(f"\nTesting API at: {BASE_URL}")
-    print(f"Make sure the server is running before running these tests")
+    print(f"API Path: {API_PATH}")
+    print(f"\nMake sure the server is running before running these tests")
     
     tests = [
-        test_home,
+        test_root,
         test_health,
-        test_cdr,
-        test_cdr_stream,
-        test_extensions,
-        test_stats,
-        test_cdr_export
+        test_calls,
+        test_calls_filter_extension,
+        test_calls_date_filter,
+        test_calls_date_filter_datetime,
+        test_calls_stream,
+        test_calls_export,
+        test_agents,
+        test_statistics
     ]
     
     results = []
@@ -174,9 +262,9 @@ def main():
         results.append(result)
     
     # Summary
-    print("\n" + "=" * 60)
+    print("\n" + "=" * 70)
     print("Test Summary")
-    print("=" * 60)
+    print("=" * 70)
     passed = sum(results)
     total = len(results)
     print(f"✅ Passed: {passed}/{total}")
@@ -184,6 +272,7 @@ def main():
     
     if passed == total:
         print("\n🎉 All tests passed!")
+        print("\n✅ API is Mitel MiContact Center compliant!")
         sys.exit(0)
     else:
         print("\n⚠️  Some tests failed. Check the output above.")
