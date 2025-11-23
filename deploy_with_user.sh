@@ -65,7 +65,7 @@ echo ""
 
 # Step 2: Deploy Docker
 echo "Step 2/5: Deploying with Docker..."
-ssh -i "$KEY_FILE" ec2-user@$EC2_IP << 'ENDSSH'
+ssh -T -i "$KEY_FILE" ec2-user@$EC2_IP << 'ENDSSH'
 cd ~/mitel-api
 
 # Install Docker if needed
@@ -80,8 +80,9 @@ fi
 # Install Docker Compose if needed
 if ! command -v docker-compose &> /dev/null; then
     echo "Installing Docker Compose..."
-    sudo apt-get update
-    sudo apt-get install -y docker-compose
+    # OS-agnostic installation via direct binary download
+    sudo curl -L "https://github.com/docker/compose/releases/download/v2.24.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+    sudo chmod +x /usr/local/bin/docker-compose
 fi
 
 echo "✅ Docker installed"
@@ -90,7 +91,7 @@ echo ""
 
 # Step 3: Create users.json
 echo "Step 3/5: Creating user configuration..."
-ssh -i "$KEY_FILE" ec2-user@$EC2_IP << ENDSSH3
+ssh -T -i "$KEY_FILE" ec2-user@$EC2_IP << ENDSSH3
 cd ~/mitel-api
 
 # Create users.json
