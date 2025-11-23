@@ -51,3 +51,10 @@ Thumbs.db
 # Deployment temporary files
 /tmp/mitel-api.tar.gz
 
+# SSL/TLS Certificates
+ssl/
+certbot/
+*.pem
+*.key
+*.crt
+
