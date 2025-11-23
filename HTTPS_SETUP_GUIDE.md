@@ -204,7 +204,26 @@ docker-compose ps
 sudo netstat -tlnp | grep 443
 ```
 
-### Issue: Let's Encrypt challenge fails
+### Issue: Let's Encrypt challenge fails (NXDOMAIN error)
+
+**Error:** `DNS problem: NXDOMAIN looking up A for your-domain.com`
+
+**Cause:** DNS not configured or not propagated yet.
+
+**Solution:** 
+
+1. Configure DNS A record (see `DNS_SETUP_GUIDE.md`)
+2. Verify DNS: `dig your-domain.com` or `nslookup your-domain.com`
+3. Use troubleshooting script: `./troubleshoot-dns.sh`
+4. Wait 5-30 minutes for DNS propagation
+5. Check online: https://dnschecker.org
+
+**Temporary workaround:** Use self-signed certificate:
+```bash
+./setup-ssl.sh  # Choose option 1
+```
+
+### Issue: Let's Encrypt challenge fails (HTTP not accessible)
 
 **Solution:** Verify:
 - Domain DNS points to your EC2 IP
