@@ -34,8 +34,32 @@ echo "  Password: ********"
 echo ""
 
 # Step 1: Copy files to EC2
-echo "Step 1/5: Copying files to EC2..."
-scp -i "$KEY_FILE" -r ./* ubuntu@$EC2_IP:~/mitel-api/
+echo "Step 1/5: Copying files to EC2 (excluding venv, __pycache__, etc.)..."
+
+# Use rsync if available (better for excludes), otherwise tar
+if command -v rsync &> /dev/null; then
+    rsync -avz -e "ssh -i $KEY_FILE" \
+        --exclude 'venv/' \
+        --exclude '__pycache__/' \
+        --exclude '*.pyc' \
+        --exclude '.git/' \
+        --exclude '.DS_Store' \
+        --exclude '*.log' \
+        ./ ec2-user@$EC2_IP:~/mitel-api/
+else
+    # Fallback: create tar excluding unwanted files
+    tar --exclude='venv' \
+        --exclude='__pycache__' \
+        --exclude='*.pyc' \
+        --exclude='.git' \
+        --exclude='.DS_Store' \
+        --exclude='*.log' \
+        -czf /tmp/mitel-api.tar.gz .
+    scp -i "$KEY_FILE" /tmp/mitel-api.tar.gz ec2-user@$EC2_IP:~/
+    ssh -i "$KEY_FILE" ec2-user@$EC2_IP "mkdir -p ~/mitel-api && tar -xzf ~/mitel-api.tar.gz -C ~/mitel-api && rm ~/mitel-api.tar.gz"
+    rm /tmp/mitel-api.tar.gz
+fi
+
 echo "✅ Files copied"
 echo ""
 

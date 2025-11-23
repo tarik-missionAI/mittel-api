@@ -20,9 +20,27 @@ From your local machine:
 EC2_IP="YOUR_EC2_PUBLIC_IP"
 KEY_FILE="path/to/your-key.pem"
 
-# Copy all files to EC2
+# Option A: Using rsync (recommended - excludes venv, __pycache__, etc.)
 cd /Users/tarik.boukherissa/Documents/mitel-api
-scp -i $KEY_FILE -r ./* ubuntu@$EC2_IP:~/mitel-api/
+rsync -avz -e "ssh -i $KEY_FILE" \
+  --exclude 'venv/' \
+  --exclude '__pycache__/' \
+  --exclude '*.pyc' \
+  --exclude '.git/' \
+  ./ ec2-user@$EC2_IP:~/mitel-api/
+
+# Option B: Using tar (if rsync not available)
+cd /Users/tarik.boukherissa/Documents/mitel-api
+tar --exclude='venv' --exclude='__pycache__' --exclude='.git' \
+  -czf /tmp/mitel-api.tar.gz .
+scp -i $KEY_FILE /tmp/mitel-api.tar.gz ec2-user@$EC2_IP:~/
+ssh -i $KEY_FILE ec2-user@$EC2_IP \
+  "mkdir -p ~/mitel-api && tar -xzf ~/mitel-api.tar.gz -C ~/mitel-api && rm ~/mitel-api.tar.gz"
+rm /tmp/mitel-api.tar.gz
+
+# Option C: Using scp (simple but includes everything)
+# Note: This will copy venv which is not recommended
+scp -i $KEY_FILE -r ./* ec2-user@$EC2_IP:~/mitel-api/
 ```
 
 ### **Step 2: Connect to EC2**

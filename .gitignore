@@ -47,3 +47,6 @@ Thumbs.db
 # Docker
 .dockerignore
 
+# Deployment temporary files
+/tmp/mitel-api.tar.gz
+
