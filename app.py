@@ -35,6 +35,8 @@ REQUIRE_AUTH = os.getenv('REQUIRE_AUTH', 'false').lower() == 'true'
 USER_MGMT_MODE = os.getenv('USER_MGMT_MODE', 'simple')
 # Users file path
 USERS_FILE = os.getenv('USERS_FILE', 'users.json')
+# Token expiration time in seconds (default: 3600 = 1 hour)
+TOKEN_EXPIRATION_DEFAULT = int(os.getenv('TOKEN_EXPIRATION', '3600'))
 
 # Simple mode - hardcoded users (for quick testing)
 SIMPLE_USERS = {
@@ -322,10 +324,24 @@ def get_users():
         return SIMPLE_USERS
 
 
-def generate_token(username, account_id):
-    """Generate a bearer token for a user"""
+def generate_token(username, account_id, expires_in=None):
+    """
+    Generate a bearer token for a user
+    
+    Args:
+        username: Username
+        account_id: Account ID
+        expires_in: Token expiration in seconds (None = use default)
+    
+    Returns:
+        tuple: (token, expires_in_seconds)
+    """
     import hashlib
     import time
+    
+    # Use provided expiration or default
+    if expires_in is None:
+        expires_in = TOKEN_EXPIRATION_DEFAULT
     
     # Create a simple token (in production, use JWT)
     token_data = f"{username}:{account_id}:{time.time()}"
@@ -336,10 +352,11 @@ def generate_token(username, account_id):
         'username': username,
         'account_id': account_id,
         'created_at': datetime.now(),
-        'expires_at': datetime.now() + timedelta(hours=1)
+        'expires_at': datetime.now() + timedelta(seconds=expires_in),
+        'expires_in': expires_in
     }
     
-    return token
+    return token, expires_in
 
 
 def validate_token(token):
@@ -451,7 +468,8 @@ def login():
     {
         "username": "user@example.com",
         "password": "password",
-        "account_id": "12345"  (optional)
+        "account_id": "12345",  (optional - deprecated, use user's account_id)
+        "expires_in": 7200      (optional - token expiration in seconds, default: 3600)
     }
     
     Response:
@@ -460,7 +478,7 @@ def login():
         "access_token": "abc123...",
         "refresh_token": "xyz789...",
         "token_type": "Bearer",
-        "expires_in": 3600,
+        "expires_in": 7200,
         "user": {
             "username": "user@example.com",
             "account_id": "1",
@@ -468,11 +486,22 @@ def login():
             "name": "Regular User"
         }
     }
+    
+    Examples:
+        # Default expiration (1 hour)
+        {"username": "user@example.com", "password": "pass123"}
+        
+        # Custom expiration (2 hours)
+        {"username": "user@example.com", "password": "pass123", "expires_in": 7200}
+        
+        # Long-lived token (24 hours)
+        {"username": "api@example.com", "password": "apikey", "expires_in": 86400}
     """
     data = request.get_json() or {}
     
     username = data.get('username')
     password = data.get('password')
+    expires_in = data.get('expires_in')  # Optional custom expiration
     
     if not username or not password:
         return jsonify({
@@ -482,6 +511,35 @@ def login():
                 "message": "Username and password are required"
             }
         }), 400
+    
+    # Validate expires_in if provided
+    if expires_in is not None:
+        try:
+            expires_in = int(expires_in)
+            if expires_in < 60:
+                return jsonify({
+                    "success": False,
+                    "error": {
+                        "code": "INVALID_EXPIRATION",
+                        "message": "Token expiration must be at least 60 seconds"
+                    }
+                }), 400
+            if expires_in > 86400 * 7:  # Max 7 days
+                return jsonify({
+                    "success": False,
+                    "error": {
+                        "code": "INVALID_EXPIRATION",
+                        "message": "Token expiration cannot exceed 7 days (604800 seconds)"
+                    }
+                }), 400
+        except (ValueError, TypeError):
+            return jsonify({
+                "success": False,
+                "error": {
+                    "code": "INVALID_EXPIRATION",
+                    "message": "Token expiration must be a valid integer (seconds)"
+                }
+            }), 400
     
     # Get users based on configured mode
     users = get_users()
@@ -509,11 +567,11 @@ def login():
             }
         }), 401
     
-    # Generate token
+    # Generate token with custom or default expiration
     account_id = user.get('account_id', '1')
-    access_token = generate_token(username, account_id)
+    access_token, token_expires_in = generate_token(username, account_id, expires_in)
     
-    logger.info(f"User logged in successfully: {username}")
+    logger.info(f"User logged in successfully: {username} (token expires in {token_expires_in}s)")
     
     # Return token and user info
     return jsonify({
@@ -521,7 +579,7 @@ def login():
         "access_token": access_token,
         "refresh_token": f"refresh_{access_token[:20]}",
         "token_type": "Bearer",
-        "expires_in": 3600,
+        "expires_in": token_expires_in,
         "user": {
             "username": username,
             "account_id": account_id,
@@ -942,6 +1000,7 @@ if __name__ == '__main__':
     if REQUIRE_AUTH:
         print(f"  - Auth is ENABLED (set REQUIRE_AUTH=false to disable)")
         print(f"  - User management: {USER_MGMT_MODE} mode")
+        print(f"  - Token expiration: {TOKEN_EXPIRATION_DEFAULT}s (set TOKEN_EXPIRATION to change)")
         print(f"  - Get token: POST /auth/login")
         if USER_MGMT_MODE == 'simple':
             print("  - Default users: admin@mitel.com/admin123, user@mitel.com/user123")
