@@ -118,7 +118,7 @@ echo ""
 
 # Step 4: Configure and start
 echo "Step 4/5: Configuring and starting API..."
-ssh -i "$KEY_FILE" ec2-user@$EC2_IP << 'ENDSSH4'
+ssh -T -i "$KEY_FILE" ec2-user@$EC2_IP << 'ENDSSH4'
 cd ~/mitel-api
 
 # Update docker-compose.yml
