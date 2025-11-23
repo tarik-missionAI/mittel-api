@@ -1,0 +1,26 @@
+{
+  "users": [
+    {
+      "username": "admin@mitel.com",
+      "password": "admin123",
+      "account_id": "1",
+      "role": "admin",
+      "name": "Admin User"
+    },
+    {
+      "username": "user@mitel.com",
+      "password": "user123",
+      "account_id": "1",
+      "role": "user",
+      "name": "Regular User"
+    },
+    {
+      "username": "supervisor@mitel.com",
+      "password": "super123",
+      "account_id": "1",
+      "role": "supervisor",
+      "name": "Supervisor User"
+    }
+  ]
+}
+

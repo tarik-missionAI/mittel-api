@@ -2,20 +2,168 @@
 
 ## Overview
 
-The mock API supports **optional Bearer Token authentication** matching Mitel's official authentication flow.
+The mock API supports **optional Bearer Token authentication** matching Mitel's official authentication flow, with **three user management modes** for different use cases.
 
 ---
 
-## 🎛️ Authentication Modes
+## 👥 User Management Modes
 
-### **Mode 1: Disabled (Default) - Easy Development**
+### **Mode 1: Simple (Default) - Hardcoded Users**
+- Best for: Quick testing, demos
+- Users defined in code
+- No external files needed
+
+**Default Users:**
+```
+admin@mitel.com / admin123  (role: admin)
+user@mitel.com / user123    (role: user)
+```
+
+### **Mode 2: JSON File - External Configuration**
+- Best for: Development, multiple environments
+- Users in `users.json` file
+- Easy to modify without code changes
+
+### **Mode 3: Environment Variables - Cloud/Docker**
+- Best for: Production, containers, secret management
+- Users from environment variables
+- Integrates with secret managers
+
+---
+
+## 🎛️ How to Configure
+
+### **Step 1: Choose User Management Mode**
+
+#### **Option A: Simple Mode (Default)**
+```bash
+# Just run - uses hardcoded users
+python3 app.py
+```
+
+#### **Option B: JSON File Mode**
+```bash
+# Uses users.json file
+USER_MGMT_MODE=json python3 app.py
+```
+
+#### **Option C: Environment Variables Mode**
+```bash
+# Uses environment variables
+USER_MGMT_MODE=env \
+MITEL_USER_1=admin@company.com:secret123:1:admin:Admin User \
+MITEL_USER_2=user@company.com:pass456:1:user:Regular User \
+python3 app.py
+```
+
+### **Step 2: Enable Authentication**
+
+```bash
+# Enable auth with your chosen user mode
+REQUIRE_AUTH=true USER_MGMT_MODE=json python3 app.py
+```
+
+---
+
+## 📝 Managing Users
+
+### **Simple Mode - Hardcoded Users**
+
+Edit `app.py` to add/modify users:
+
+```python
+SIMPLE_USERS = {
+    "admin@mitel.com": {
+        "password": "admin123",
+        "account_id": "1",
+        "role": "admin",
+        "name": "Admin User"
+    },
+    "your_user@company.com": {
+        "password": "your_password",
+        "account_id": "1",
+        "role": "user",
+        "name": "Your Name"
+    }
+}
+```
+
+### **JSON File Mode - External Configuration**
+
+Create/edit `users.json`:
+
+```json
+{
+  "users": [
+    {
+      "username": "admin@company.com",
+      "password": "secure_password_123",
+      "account_id": "1",
+      "role": "admin",
+      "name": "Admin User"
+    },
+    {
+      "username": "user1@company.com",
+      "password": "user_pass_456",
+      "account_id": "1",
+      "role": "user",
+      "name": "User One"
+    },
+    {
+      "username": "supervisor@company.com",
+      "password": "super_pass_789",
+      "account_id": "2",
+      "role": "supervisor",
+      "name": "Supervisor User"
+    }
+  ]
+}
+```
+
+**Run with JSON mode:**
+```bash
+REQUIRE_AUTH=true USER_MGMT_MODE=json python3 app.py
+```
+
+**Custom JSON file location:**
+```bash
+REQUIRE_AUTH=true USER_MGMT_MODE=json USERS_FILE=/path/to/custom_users.json python3 app.py
+```
+
+### **Environment Variables Mode - Cloud/Docker**
+
+Set environment variables:
+
+```bash
+# Format: MITEL_USER_N=username:password:account_id:role:name
+export MITEL_USER_1=admin@company.com:admin_secret:1:admin:Admin User
+export MITEL_USER_2=user@company.com:user_secret:1:user:Regular User
+export MITEL_USER_3=api@company.com:api_key_xyz:1:api:API Service Account
+
+# Run with env mode
+REQUIRE_AUTH=true USER_MGMT_MODE=env python3 app.py
+```
+
+**Docker example:**
+```dockerfile
+ENV REQUIRE_AUTH=true
+ENV USER_MGMT_MODE=env
+ENV MITEL_USER_1=admin@company.com:secret123:1:admin:Admin
+ENV MITEL_USER_2=user@company.com:pass456:1:user:User
+```
+
+---
+
+## 🎛️ Authentication On/Off
+
+### **Disabled (Default) - Easy Development**
 ```bash
 # No authentication required
 python3 app.py
 curl http://localhost:5000/api/v1/reporting/calls?limit=10
 ```
 
-### **Mode 2: Enabled - Production-Like**
+### **Enabled - Production-Like**
 ```bash
 # Requires bearer token
 REQUIRE_AUTH=true python3 app.py

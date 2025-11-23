@@ -31,8 +31,29 @@ BASE_PATH = f"/api/{API_VERSION}"
 # Authentication Configuration
 # Set REQUIRE_AUTH=true in environment to enable authentication
 REQUIRE_AUTH = os.getenv('REQUIRE_AUTH', 'false').lower() == 'true'
-# Mock bearer token (in production, this would be validated against auth service)
-VALID_TOKEN = "mitel_mock_token_12345"
+# User management mode: 'simple', 'json', 'env'
+USER_MGMT_MODE = os.getenv('USER_MGMT_MODE', 'simple')
+# Users file path
+USERS_FILE = os.getenv('USERS_FILE', 'users.json')
+
+# Simple mode - hardcoded users (for quick testing)
+SIMPLE_USERS = {
+    "admin@mitel.com": {
+        "password": "admin123",
+        "account_id": "1",
+        "role": "admin",
+        "name": "Admin User"
+    },
+    "user@mitel.com": {
+        "password": "user123",
+        "account_id": "1",
+        "role": "user",
+        "name": "Regular User"
+    }
+}
+
+# Store active tokens (in production, use Redis or database)
+active_tokens = {}
 
 # Mock data pools - based on your CSV
 USERNAMES = [
@@ -250,6 +271,92 @@ def parse_date_param(date_str: str, param_name: str, end_of_day: bool = False):
         raise ValueError(f"Invalid {param_name} format. Use ISO 8601: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS")
 
 
+def load_users_from_json():
+    """Load users from JSON file"""
+    try:
+        with open(USERS_FILE, 'r') as f:
+            data = json.load(f)
+            users = {}
+            for user in data.get('users', []):
+                users[user['username']] = user
+            return users
+    except FileNotFoundError:
+        logger.warning(f"Users file '{USERS_FILE}' not found. Using simple mode.")
+        return SIMPLE_USERS
+    except Exception as e:
+        logger.error(f"Error loading users file: {e}. Using simple mode.")
+        return SIMPLE_USERS
+
+
+def load_users_from_env():
+    """Load users from environment variables"""
+    # Format: MITEL_USER_1=username:password:account_id:role:name
+    users = {}
+    i = 1
+    while True:
+        user_env = os.getenv(f'MITEL_USER_{i}')
+        if not user_env:
+            break
+        
+        parts = user_env.split(':')
+        if len(parts) >= 2:
+            username = parts[0]
+            users[username] = {
+                'password': parts[1],
+                'account_id': parts[2] if len(parts) > 2 else '1',
+                'role': parts[3] if len(parts) > 3 else 'user',
+                'name': parts[4] if len(parts) > 4 else username
+            }
+        i += 1
+    
+    return users if users else SIMPLE_USERS
+
+
+def get_users():
+    """Get users based on configured mode"""
+    if USER_MGMT_MODE == 'json':
+        return load_users_from_json()
+    elif USER_MGMT_MODE == 'env':
+        return load_users_from_env()
+    else:  # simple mode
+        return SIMPLE_USERS
+
+
+def generate_token(username, account_id):
+    """Generate a bearer token for a user"""
+    import hashlib
+    import time
+    
+    # Create a simple token (in production, use JWT)
+    token_data = f"{username}:{account_id}:{time.time()}"
+    token = hashlib.sha256(token_data.encode()).hexdigest()
+    
+    # Store token with user info and expiration
+    active_tokens[token] = {
+        'username': username,
+        'account_id': account_id,
+        'created_at': datetime.now(),
+        'expires_at': datetime.now() + timedelta(hours=1)
+    }
+    
+    return token
+
+
+def validate_token(token):
+    """Validate a bearer token"""
+    if token not in active_tokens:
+        return None
+    
+    token_info = active_tokens[token]
+    
+    # Check if token expired
+    if datetime.now() > token_info['expires_at']:
+        del active_tokens[token]
+        return None
+    
+    return token_info
+
+
 def require_auth(f):
     """
     Decorator to require Bearer token authentication
@@ -286,8 +393,9 @@ def require_auth(f):
         # Extract token
         token = auth_header[7:]  # Remove 'Bearer ' prefix
         
-        # Validate token (in real implementation, this would call auth service)
-        if token != VALID_TOKEN:
+        # Validate token
+        token_info = validate_token(token)
+        if not token_info:
             return jsonify({
                 "success": False,
                 "error": {
@@ -296,7 +404,8 @@ def require_auth(f):
                 }
             }), 401
         
-        # Token valid - proceed with request
+        # Token valid - add user info to request context
+        request.user_info = token_info
         return f(*args, **kwargs)
     
     return decorated_function
@@ -316,10 +425,13 @@ def root():
             "required": REQUIRE_AUTH,
             "type": "Bearer Token",
             "header": "Authorization: Bearer <token>",
+            "user_management": USER_MGMT_MODE,
             "note": "Set REQUIRE_AUTH=true to enable authentication"
         },
         "endpoints": {
             "/auth/login": "Get bearer token (POST)",
+            "/auth/logout": "Invalidate token (POST, requires auth)",
+            "/auth/users": "List users (GET, requires auth)",
             f"{BASE_PATH}/reporting/calls": "Get historical call records with date filtering",
             f"{BASE_PATH}/reporting/calls/stream": "Stream call records (Kafka format)",
             f"{BASE_PATH}/reporting/calls/export": "Export calls as CSV",
@@ -333,25 +445,32 @@ def root():
 @app.route('/auth/login', methods=['POST'])
 def login():
     """
-    Mock authentication endpoint - returns bearer token
+    Authentication endpoint - returns bearer token
     
     Request Body:
     {
         "username": "user@example.com",
         "password": "password",
-        "account_id": "12345"
+        "account_id": "12345"  (optional)
     }
     
     Response:
     {
-        "access_token": "mitel_mock_token_12345",
-        "refresh_token": "refresh_token_67890",
-        "expires_in": 3600
+        "success": true,
+        "access_token": "abc123...",
+        "refresh_token": "xyz789...",
+        "token_type": "Bearer",
+        "expires_in": 3600,
+        "user": {
+            "username": "user@example.com",
+            "account_id": "1",
+            "role": "user",
+            "name": "Regular User"
+        }
     }
     """
     data = request.get_json() or {}
     
-    # Mock validation (accept any credentials for mock)
     username = data.get('username')
     password = data.get('password')
     
@@ -359,19 +478,118 @@ def login():
         return jsonify({
             "success": False,
             "error": {
-                "code": "INVALID_CREDENTIALS",
+                "code": "MISSING_CREDENTIALS",
                 "message": "Username and password are required"
             }
         }), 400
     
-    # Return mock token
+    # Get users based on configured mode
+    users = get_users()
+    
+    # Validate credentials
+    if username not in users:
+        logger.warning(f"Login attempt with unknown username: {username}")
+        return jsonify({
+            "success": False,
+            "error": {
+                "code": "INVALID_CREDENTIALS",
+                "message": "Invalid username or password"
+            }
+        }), 401
+    
+    user = users[username]
+    
+    if user['password'] != password:
+        logger.warning(f"Login attempt with incorrect password for user: {username}")
+        return jsonify({
+            "success": False,
+            "error": {
+                "code": "INVALID_CREDENTIALS",
+                "message": "Invalid username or password"
+            }
+        }), 401
+    
+    # Generate token
+    account_id = user.get('account_id', '1')
+    access_token = generate_token(username, account_id)
+    
+    logger.info(f"User logged in successfully: {username}")
+    
+    # Return token and user info
     return jsonify({
         "success": True,
-        "access_token": VALID_TOKEN,
-        "refresh_token": "refresh_token_67890",
+        "access_token": access_token,
+        "refresh_token": f"refresh_{access_token[:20]}",
         "token_type": "Bearer",
         "expires_in": 3600,
-        "account_id": data.get('account_id', '12345')
+        "user": {
+            "username": username,
+            "account_id": account_id,
+            "role": user.get('role', 'user'),
+            "name": user.get('name', username)
+        }
+    })
+
+
+@app.route('/auth/logout', methods=['POST'])
+@require_auth
+def logout():
+    """
+    Logout endpoint - invalidates bearer token
+    
+    Headers:
+        Authorization: Bearer <token>
+    
+    Response:
+    {
+        "success": true,
+        "message": "Logged out successfully"
+    }
+    """
+    auth_header = request.headers.get('Authorization', '')
+    if auth_header.startswith('Bearer '):
+        token = auth_header[7:]
+        if token in active_tokens:
+            username = active_tokens[token]['username']
+            del active_tokens[token]
+            logger.info(f"User logged out: {username}")
+    
+    return jsonify({
+        "success": True,
+        "message": "Logged out successfully"
+    })
+
+
+@app.route('/auth/users', methods=['GET'])
+@require_auth
+def list_users():
+    """
+    List all configured users (for admin/testing)
+    Requires authentication
+    
+    Response:
+    {
+        "success": true,
+        "users": [...]
+    }
+    """
+    users = get_users()
+    
+    # Return users without passwords
+    safe_users = []
+    for username, user_data in users.items():
+        safe_users.append({
+            "username": username,
+            "account_id": user_data.get('account_id', '1'),
+            "role": user_data.get('role', 'user'),
+            "name": user_data.get('name', username)
+        })
+    
+    return jsonify({
+        "success": True,
+        "users": safe_users,
+        "count": len(safe_users),
+        "management_mode": USER_MGMT_MODE
     })
 
 
@@ -722,9 +940,15 @@ if __name__ == '__main__':
     print(f"  ✓ Bearer token authentication: {'ENABLED' if REQUIRE_AUTH else 'DISABLED'}")
     print("\nAuthentication:")
     if REQUIRE_AUTH:
-        print("  - Auth is ENABLED (set REQUIRE_AUTH=false to disable)")
-        print("  - Get token: POST /auth/login")
-        print("  - Use token: Authorization: Bearer mitel_mock_token_12345")
+        print(f"  - Auth is ENABLED (set REQUIRE_AUTH=false to disable)")
+        print(f"  - User management: {USER_MGMT_MODE} mode")
+        print(f"  - Get token: POST /auth/login")
+        if USER_MGMT_MODE == 'simple':
+            print("  - Default users: admin@mitel.com/admin123, user@mitel.com/user123")
+        elif USER_MGMT_MODE == 'json':
+            print(f"  - Users loaded from: {USERS_FILE}")
+        elif USER_MGMT_MODE == 'env':
+            print("  - Users loaded from environment variables (MITEL_USER_*)")
     else:
         print("  - Auth is DISABLED (set REQUIRE_AUTH=true to enable)")
         print("  - All endpoints accessible without authentication")
