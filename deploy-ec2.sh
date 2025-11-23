@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # EC2 Deployment Script for Mitel API Mock Server
-# This script sets up and runs the Mitel API Mock on an Ubuntu EC2 instance
+# This script sets up and runs the Mitel API Mock on an Amazon Linux EC2 instance
 
 set -e
 
@@ -35,7 +35,7 @@ cd $APP_DIR
 # Clone or copy your application files here
 # For manual deployment, you would copy files via scp
 echo "Application files should be copied to $APP_DIR"
-echo "Use: scp -i your-key.pem -r ./* ubuntu@your-ec2-ip:$APP_DIR"
+echo "Use: scp -i your-key.pem -r ./* ec2-user@your-ec2-ip:$APP_DIR"
 
 # Create Python virtual environment
 echo "Creating Python virtual environment..."

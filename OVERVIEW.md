@@ -92,8 +92,8 @@ curl http://localhost:5000/api/health
 ### Path 3: AWS EC2 (5 minutes)
 ```bash
 # From your machine:
-scp -i key.pem -r mitel-api/* ubuntu@EC2_IP:~/mitel-api/
-ssh -i key.pem ubuntu@EC2_IP
+scp -i key.pem -r mitel-api/* ec2-user@EC2_IP:~/mitel-api/
+ssh -i key.pem ec2-user@EC2_IP
 cd ~/mitel-api
 ./deploy-ec2.sh
 # Test:
@@ -264,7 +264,7 @@ fetch('http://your-ec2:5000/api/v1/cdr?limit=50')
    ```
 
 2. **Deploy to EC2**
-   - Launch Ubuntu EC2 instance
+   - Launch Amazon Linux 2023 EC2 instance
    - Configure Security Group (ports 22, 5000)
    - Copy files and run `./deploy-ec2.sh`
 

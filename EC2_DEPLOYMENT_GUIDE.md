@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- ✅ AWS EC2 instance running (Ubuntu 20.04 or later)
+- ✅ AWS EC2 instance running (Amazon Linux 2023 or Amazon Linux 2)
 - ✅ SSH key (.pem file) to access EC2
 - ✅ Security Group allows ports 22 (SSH) and 5000 (API)
 - ✅ Username and password for your API user
@@ -46,7 +46,7 @@ scp -i $KEY_FILE -r ./* ec2-user@$EC2_IP:~/mitel-api/
 ### **Step 2: Connect to EC2**
 
 ```bash
-ssh -i $KEY_FILE ubuntu@$EC2_IP
+ssh -i $KEY_FILE ec2-user@$EC2_IP
 ```
 
 ### **Step 3: Deploy with Docker (Recommended)**
@@ -263,11 +263,11 @@ API_PASSWORD="YOUR_PASSWORD"
 # === 1. COPY FILES TO EC2 ===
 echo "Copying files to EC2..."
 cd /Users/tarik.boukherissa/Documents/mitel-api
-scp -i $KEY_FILE -r ./* ubuntu@$EC2_IP:~/mitel-api/
+scp -i $KEY_FILE -r ./* ec2-user@$EC2_IP:~/mitel-api/
 
 # === 2. DEPLOY ON EC2 ===
 echo "Deploying on EC2..."
-ssh -i $KEY_FILE ubuntu@$EC2_IP << 'ENDSSH'
+ssh -i $KEY_FILE ec2-user@$EC2_IP << 'ENDSSH'
 cd ~/mitel-api
 
 # Install Docker if needed
@@ -330,7 +330,7 @@ ENDSSH
 
 # === 3. REPLACE PLACEHOLDERS WITH ACTUAL VALUES ===
 echo "Updating credentials on EC2..."
-ssh -i $KEY_FILE ubuntu@$EC2_IP << ENDSSH2
+ssh -i $KEY_FILE ec2-user@$EC2_IP << ENDSSH2
 cd ~/mitel-api
 sed -i "s/API_USERNAME_PLACEHOLDER/$API_USERNAME/g" users.json
 sed -i "s/API_PASSWORD_PLACEHOLDER/$API_PASSWORD/g" users.json
@@ -374,7 +374,7 @@ If you prefer to do it manually step by step:
 
 ```bash
 # 1. Connect
-ssh -i your-key.pem ubuntu@YOUR_EC2_IP
+ssh -i your-key.pem ec2-user@YOUR_EC2_IP
 
 # 2. Navigate to app
 cd ~/mitel-api
@@ -544,10 +544,10 @@ docker-compose start
 
 ```bash
 # 1. Copy files
-scp -i KEY.pem -r ./* ubuntu@EC2_IP:~/mitel-api/
+scp -i KEY.pem -r ./* ec2-user@EC2_IP:~/mitel-api/
 
 # 2. SSH to EC2
-ssh -i KEY.pem ubuntu@EC2_IP
+ssh -i KEY.pem ec2-user@EC2_IP
 
 # 3. Create user file
 cd ~/mitel-api

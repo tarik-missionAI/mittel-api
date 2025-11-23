@@ -87,7 +87,7 @@ docker-compose stop
 ## ☁️ Deploy to AWS EC2
 
 ### Prerequisites
-1. Launch an Ubuntu EC2 instance (t2.small recommended)
+1. Launch an Amazon Linux 2023 EC2 instance (t2.small recommended)
 2. Security Group: Allow ports 22 (SSH) and 5000 (API)
 3. Download your .pem key file
 
@@ -100,13 +100,13 @@ export EC2_IP="your-ec2-public-ip"
 export KEY_FILE="/path/to/your-key.pem"
 
 # Copy all files
-scp -i $KEY_FILE -r /Users/tarik.boukherissa/Documents/mitel-api/* ubuntu@$EC2_IP:~/mitel-api/
+scp -i $KEY_FILE -r /Users/tarik.boukherissa/Documents/mitel-api/* ec2-user@$EC2_IP:~/mitel-api/
 ```
 
 #### 2. Connect and Deploy
 ```bash
 # SSH to EC2
-ssh -i $KEY_FILE ubuntu@$EC2_IP
+ssh -i $KEY_FILE ec2-user@$EC2_IP
 
 # Deploy
 cd ~/mitel-api

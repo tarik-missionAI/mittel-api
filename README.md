@@ -111,18 +111,18 @@ gunicorn --bind 0.0.0.0:5000 --workers 4 --timeout 120 app:app
 
 1. **Connect to your EC2 instance**
    ```bash
-   ssh -i your-key.pem ubuntu@your-ec2-public-ip
+   ssh -i your-key.pem ec2-user@your-ec2-public-ip
    ```
 
 2. **Copy the application files**
    ```bash
    # From your local machine
-   scp -i your-key.pem -r ./* ubuntu@your-ec2-ip:/home/ubuntu/mitel-api
+   scp -i your-key.pem -r ./* ec2-user@your-ec2-ip:/home/ec2-user/mitel-api
    ```
 
 3. **Run the Docker deployment script**
    ```bash
-   cd /home/ubuntu/mitel-api
+   cd /home/ec2-user/mitel-api
    chmod +x deploy-docker.sh
    ./deploy-docker.sh
    ```
@@ -131,14 +131,14 @@ gunicorn --bind 0.0.0.0:5000 --workers 4 --timeout 120 app:app
 
 1. **Connect to EC2**
    ```bash
-   ssh -i your-key.pem ubuntu@your-ec2-public-ip
+   ssh -i your-key.pem ec2-user@your-ec2-public-ip
    ```
 
 2. **Copy files and run setup script**
    ```bash
-   scp -i your-key.pem -r ./* ubuntu@your-ec2-ip:/home/ubuntu/mitel-api
-   ssh -i your-key.pem ubuntu@your-ec2-ip
-   cd /home/ubuntu/mitel-api
+   scp -i your-key.pem -r ./* ec2-user@your-ec2-ip:/home/ec2-user/mitel-api
+   ssh -i your-key.pem ec2-user@your-ec2-ip
+   cd /home/ec2-user/mitel-api
    chmod +x deploy-ec2.sh
    ./deploy-ec2.sh
    ```
@@ -155,7 +155,7 @@ gunicorn --bind 0.0.0.0:5000 --workers 4 --timeout 120 app:app
 ## EC2 Instance Requirements
 
 - **Instance Type**: t2.micro or larger (t2.small recommended)
-- **AMI**: Ubuntu Server 20.04 LTS or later
+- **AMI**: Amazon Linux 2023 or Amazon Linux 2
 - **Storage**: 8 GB minimum
 - **Security Group**: 
   - Port 22 (SSH)

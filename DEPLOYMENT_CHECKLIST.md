@@ -21,7 +21,7 @@
 ## 🔧 EC2 Deployment Checklist
 
 ### AWS Setup
-- [ ] EC2 instance created (Ubuntu 20.04 LTS)
+- [ ] EC2 instance created (Amazon Linux 2023 or Amazon Linux 2)
 - [ ] Instance type: t2.small or larger
 - [ ] Key pair created/downloaded (.pem file)
 - [ ] Security Group configured:
@@ -32,7 +32,7 @@
 ### File Transfer
 - [ ] All files copied to EC2:
   ```bash
-  scp -i your-key.pem -r /path/to/mitel-api/* ubuntu@EC2_IP:~/mitel-api/
+  scp -i your-key.pem -r /path/to/mitel-api/* ec2-user@EC2_IP:~/mitel-api/
   ```
 - [ ] Scripts are executable:
   ```bash
@@ -42,7 +42,7 @@
 ### Deployment Method Selection
 
 #### Option A: Docker Deployment (Recommended)
-- [ ] Connect to EC2: `ssh -i your-key.pem ubuntu@EC2_IP`
+- [ ] Connect to EC2: `ssh -i your-key.pem ec2-user@EC2_IP`
 - [ ] Navigate to directory: `cd ~/mitel-api`
 - [ ] Run deployment: `./deploy-docker.sh`
 - [ ] Verify container running: `docker ps`
@@ -50,7 +50,7 @@
 - [ ] Test health: `curl http://localhost:5000/api/health`
 
 #### Option B: Systemd Deployment
-- [ ] Connect to EC2: `ssh -i your-key.pem ubuntu@EC2_IP`
+- [ ] Connect to EC2: `ssh -i your-key.pem ec2-user@EC2_IP`
 - [ ] Navigate to directory: `cd ~/mitel-api`
 - [ ] Run deployment: `./deploy-ec2.sh`
 - [ ] Verify service: `sudo systemctl status mitel-api-mock`

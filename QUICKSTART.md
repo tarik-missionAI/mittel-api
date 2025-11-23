@@ -75,7 +75,7 @@ curl http://localhost:5000/api/health
 
 1. Go to AWS Console → EC2
 2. Launch instance:
-   - AMI: Ubuntu Server 20.04 LTS
+   - AMI: Amazon Linux 2023
    - Instance type: t2.small (recommended) or t2.micro
    - Storage: 8 GB
    - Create/use existing key pair
@@ -96,14 +96,14 @@ EC2_IP="your-ec2-public-ip"
 KEY_FILE="path/to/your-key.pem"
 
 # Copy all files
-scp -i $KEY_FILE -r /Users/tarik.boukherissa/Documents/mitel-api/* ubuntu@$EC2_IP:~/mitel-api/
+scp -i $KEY_FILE -r /Users/tarik.boukherissa/Documents/mitel-api/* ec2-user@$EC2_IP:~/mitel-api/
 ```
 
 ### Step 4: Connect and Deploy
 
 ```bash
 # Connect to EC2
-ssh -i $KEY_FILE ubuntu@$EC2_IP
+ssh -i $KEY_FILE ec2-user@$EC2_IP
 
 # Deploy with Docker (recommended)
 cd ~/mitel-api

@@ -65,7 +65,7 @@ echo ""
 
 # Step 2: Deploy Docker
 echo "Step 2/5: Deploying with Docker..."
-ssh -i "$KEY_FILE" ubuntu@$EC2_IP << 'ENDSSH'
+ssh -i "$KEY_FILE" ec2-user@$EC2_IP << 'ENDSSH'
 cd ~/mitel-api
 
 # Install Docker if needed
@@ -90,7 +90,7 @@ echo ""
 
 # Step 3: Create users.json
 echo "Step 3/5: Creating user configuration..."
-ssh -i "$KEY_FILE" ubuntu@$EC2_IP << ENDSSH3
+ssh -i "$KEY_FILE" ec2-user@$EC2_IP << ENDSSH3
 cd ~/mitel-api
 
 # Create users.json
@@ -117,7 +117,7 @@ echo ""
 
 # Step 4: Configure and start
 echo "Step 4/5: Configuring and starting API..."
-ssh -i "$KEY_FILE" ubuntu@$EC2_IP << 'ENDSSH4'
+ssh -i "$KEY_FILE" ec2-user@$EC2_IP << 'ENDSSH4'
 cd ~/mitel-api
 
 # Update docker-compose.yml
