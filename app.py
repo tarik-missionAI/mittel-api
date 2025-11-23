@@ -4,14 +4,17 @@ Compliant with Mitel API structure and endpoints
 
 Based on: Mitel MiContact Center Business Historical Reporting API
 Endpoints match official Mitel API patterns
+Includes Bearer Token authentication (optional)
 """
 
 from flask import Flask, jsonify, request, Response
 from flask_cors import CORS
 from datetime import datetime, timedelta
+from functools import wraps
 import random
 import json
 import logging
+import os
 from typing import Optional
 
 app = Flask(__name__)
@@ -24,6 +27,12 @@ logger = logging.getLogger(__name__)
 # API Version
 API_VERSION = "v1"
 BASE_PATH = f"/api/{API_VERSION}"
+
+# Authentication Configuration
+# Set REQUIRE_AUTH=true in environment to enable authentication
+REQUIRE_AUTH = os.getenv('REQUIRE_AUTH', 'false').lower() == 'true'
+# Mock bearer token (in production, this would be validated against auth service)
+VALID_TOKEN = "mitel_mock_token_12345"
 
 # Mock data pools - based on your CSV
 USERNAMES = [
@@ -241,6 +250,58 @@ def parse_date_param(date_str: str, param_name: str, end_of_day: bool = False):
         raise ValueError(f"Invalid {param_name} format. Use ISO 8601: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS")
 
 
+def require_auth(f):
+    """
+    Decorator to require Bearer token authentication
+    Only enforced if REQUIRE_AUTH=true
+    """
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not REQUIRE_AUTH:
+            # Auth disabled - allow all requests
+            return f(*args, **kwargs)
+        
+        # Check for Authorization header
+        auth_header = request.headers.get('Authorization')
+        
+        if not auth_header:
+            return jsonify({
+                "success": False,
+                "error": {
+                    "code": "UNAUTHORIZED",
+                    "message": "Missing Authorization header. Include 'Authorization: Bearer <token>'"
+                }
+            }), 401
+        
+        # Check Bearer token format
+        if not auth_header.startswith('Bearer '):
+            return jsonify({
+                "success": False,
+                "error": {
+                    "code": "INVALID_AUTH_FORMAT",
+                    "message": "Authorization header must use Bearer token format: 'Bearer <token>'"
+                }
+            }), 401
+        
+        # Extract token
+        token = auth_header[7:]  # Remove 'Bearer ' prefix
+        
+        # Validate token (in real implementation, this would call auth service)
+        if token != VALID_TOKEN:
+            return jsonify({
+                "success": False,
+                "error": {
+                    "code": "INVALID_TOKEN",
+                    "message": "Invalid or expired bearer token"
+                }
+            }), 401
+        
+        # Token valid - proceed with request
+        return f(*args, **kwargs)
+    
+    return decorated_function
+
+
 # ==================== API ENDPOINTS ====================
 
 @app.route('/')
@@ -251,7 +312,14 @@ def root():
         "version": API_VERSION,
         "description": "Mock API for Mitel MiContact Center Call Detail Records",
         "documentation": "https://developer.mitel.io/",
+        "authentication": {
+            "required": REQUIRE_AUTH,
+            "type": "Bearer Token",
+            "header": "Authorization: Bearer <token>",
+            "note": "Set REQUIRE_AUTH=true to enable authentication"
+        },
         "endpoints": {
+            "/auth/login": "Get bearer token (POST)",
             f"{BASE_PATH}/reporting/calls": "Get historical call records with date filtering",
             f"{BASE_PATH}/reporting/calls/stream": "Stream call records (Kafka format)",
             f"{BASE_PATH}/reporting/calls/export": "Export calls as CSV",
@@ -259,6 +327,51 @@ def root():
             f"{BASE_PATH}/reporting/statistics": "Get call statistics",
             "/health": "Health check endpoint"
         }
+    })
+
+
+@app.route('/auth/login', methods=['POST'])
+def login():
+    """
+    Mock authentication endpoint - returns bearer token
+    
+    Request Body:
+    {
+        "username": "user@example.com",
+        "password": "password",
+        "account_id": "12345"
+    }
+    
+    Response:
+    {
+        "access_token": "mitel_mock_token_12345",
+        "refresh_token": "refresh_token_67890",
+        "expires_in": 3600
+    }
+    """
+    data = request.get_json() or {}
+    
+    # Mock validation (accept any credentials for mock)
+    username = data.get('username')
+    password = data.get('password')
+    
+    if not username or not password:
+        return jsonify({
+            "success": False,
+            "error": {
+                "code": "INVALID_CREDENTIALS",
+                "message": "Username and password are required"
+            }
+        }), 400
+    
+    # Return mock token
+    return jsonify({
+        "success": True,
+        "access_token": VALID_TOKEN,
+        "refresh_token": "refresh_token_67890",
+        "token_type": "Bearer",
+        "expires_in": 3600,
+        "account_id": data.get('account_id', '12345')
     })
 
 
@@ -273,6 +386,7 @@ def health():
 
 
 @app.route(f'{BASE_PATH}/reporting/calls', methods=['GET'])
+@require_auth
 def get_call_records():
     """
     Get Call Detail Records - Mitel MiContact Center format
@@ -372,6 +486,7 @@ def get_call_records():
 
 
 @app.route(f'{BASE_PATH}/reporting/calls/stream', methods=['GET'])
+@require_auth
 def stream_call_records():
     """
     Stream Call Detail Records in Kafka message format
@@ -431,6 +546,7 @@ def stream_call_records():
 
 
 @app.route(f'{BASE_PATH}/reporting/calls/export', methods=['GET'])
+@require_auth
 def export_calls_csv():
     """
     Export Call Detail Records as CSV
@@ -508,6 +624,7 @@ def export_calls_csv():
 
 
 @app.route(f'{BASE_PATH}/reporting/agents', methods=['GET'])
+@require_auth
 def get_agents():
     """Get list of agents/extensions"""
     agents = []
@@ -529,6 +646,7 @@ def get_agents():
 
 
 @app.route(f'{BASE_PATH}/reporting/statistics', methods=['GET'])
+@require_auth
 def get_statistics():
     """
     Get call statistics and KPIs
@@ -601,6 +719,15 @@ if __name__ == '__main__':
     print("  ✓ Extension and direction filtering")
     print("  ✓ Kafka message format support")
     print("  ✓ CSV export with exact format match")
+    print(f"  ✓ Bearer token authentication: {'ENABLED' if REQUIRE_AUTH else 'DISABLED'}")
+    print("\nAuthentication:")
+    if REQUIRE_AUTH:
+        print("  - Auth is ENABLED (set REQUIRE_AUTH=false to disable)")
+        print("  - Get token: POST /auth/login")
+        print("  - Use token: Authorization: Bearer mitel_mock_token_12345")
+    else:
+        print("  - Auth is DISABLED (set REQUIRE_AUTH=true to enable)")
+        print("  - All endpoints accessible without authentication")
     print("\nStarting server on http://0.0.0.0:5000")
     print("=" * 70)
     
